@@ -1,8 +1,13 @@
 import showPost from './components/posts';
+//import {showUpost, showMyProfile} from './components/profile'
+import moment from 'moment';
+import UPosts from './services/posts';
 //import showMePost from './components/posts';
 
 //import showMeProfile from './components/profile'
 
+var me;
+var tokens;
 
 function login(){
 
@@ -17,7 +22,6 @@ function login(){
     };
     console.log(data);
 
-
    fetch(`${API_PATH}/login`, {
        method: 'POST',
        body: JSON.stringify(data), //data can be string or object
@@ -31,30 +35,33 @@ function login(){
   .then(response => {
        if(response.estatus && response.estatus == "error"){
            alert("PROBLEMA");          
-
-             
        }else{
            var usuariodato  = {
                "id" : response.id,
                "username" : response.name
            };
-
         console.log(response.token)
-        window.localStorage.setItem("Token", response.token);
+        window.localStorage.setItem("token", response.token);
        // sessionStorage.setItem('Token', response.token);
-
-      
-
           alert("PERFECTO " + usuariodato.username + " Te has logueado correctamente, tu id es: " + usuariodato.id);
          window.location="page.html";
           
        }
    })
    .catch(error => console.error('Error:', error));
-
-   
-
 } 
+
+
+
+function logout(){
+    console.log("Saliendo");
+    console.log("Adiós");
+    localStorage.clear();
+    window.location="index.html";
+
+
+
+}
 
 
 
@@ -73,11 +80,15 @@ var createPostTemplate =
             <form>
              <div class="form-group">
              <h6 >Título del Post:</h6>
-              <textarea class="form-control"input type="text"  id="titulo" rows="1"></textarea>
+              <textarea class="form-control"input type="text"  placeholder="Título" id="titulo" rows="1"></textarea>
             </div>
             <h6 >Contenido:</h6>
             <div class="form-group">
-              <textarea class="form-control" input type="text"  id="contenido" rows="3"></textarea>
+              <textarea class="form-control" input type="text" placeholder="Contenido" id="contenido" rows="3"></textarea>
+            </div>
+            <h6 >Etiquetas:</h6>
+            <div class="form-group">
+              <textarea class="form-control" input type="text"  placeholder="Etiquetas separadas por comas (,)" id="tags" rows="1"></textarea>
             </div>
             <button type="submit" id="btn-nuevo-post" class="btn btn-primary">Enviar</button>
             </form>
@@ -85,19 +96,41 @@ var createPostTemplate =
 </div>`
 
 
+var userPostTemplate =
+    `<div>   
+<h3 class="mt-4"> {{TITLE}} </h3>
+<h5> Created:  {{FECHA}} </h5>
+<p> {{BODY}} </p>
+<h6> OOH <span style="color: blue"> <a href="#"  data-postid="{{POSTID}}"  id= "btn_like"> ME GUSTA </a> </span> </h6>
+<h5> by: {{NAME}} <h5>
+<h6> Likes: {{LIKES}}   -    Comments: {{NCOMMENTS}}   -    Views: {{VIEWS}}   -   Tags: {{TAGS}}  <h6>
+<hr>
+<div class="card my-4">
+          <h5 class="card-header">Deje su comentario:</h5>
+          <div class="card-body">
+            <form>
+              <div class="form-group">
+                <textarea class="form-control" placeholder="Su comentario" rows="3"></textarea>
+              </div>
+              <button type="submit" id="btn_comment" class="btn btn-info">Enviar</button>
+            </form>
+          </div>
+        </div>
+</div>`
+
+
 function showMeProfile(){
-    console.log('Show MY Profile');
-    //document.getElementById('app').innerHTML = '<h1>My Profile</h1>';
-    
-    fetch(`http://itla.hectorvent.com/api/users/me`, {
+    console.log('Show MY Profile'); 
+
+    var tokens = window.localStorage.getItem('token');
+       
+    fetch(`${API_PATH}/users/me`, {
         method: 'GET',
-        
          headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer 5755db3e-3413-4723-bcc9-1451bea8be95`
+            'Authorization': 'Bearer '+ tokens 
         }
     })
-
     .then(res => res.json())
     .then(res=> {
        console.log(res);
@@ -120,30 +153,29 @@ function showMeProfile(){
     console.log(err);
 
 })
-
-
 }
+
 
 function showMePost(){
     console.log('Show My Posts');
     //document.getElementById('app').innerHTML = '<h1>My Posts List</h1>';
     console.log('FUNCION AUN NO ESTÁ LISTA');
+    var tokens = window.localStorage.getItem('token');
 
-    fetch(`http://itla.hectorvent.com/api/post/?userId=+me`, {
+        fetch(`${API_PATH}/post/?userId=`+ me.id, {
         method: 'GET',
-        
-         headers: {
+         headers: { 
             'Content-Type': 'application/json',
-            'Authorization': `Bearer 5755db3e-3413-4723-bcc9-1451bea8be95`
+            'Authorization': 'Bearer '+ tokens 
             }
         })
         .then(res => res.json())
         .then(res=> {
           console.log(res);
-          var idPost = res.id
+          var idPost = res.id;
             var postView = '';
-            res.forEach(p =>{
-         console.log(p);
+            res.forEach(p => {
+            console.log(p);
                 postView = postView +
                 userPostTemplate.replace('{{BODY}}', p.body)
                 .replace('{{NAME}}', p.userName)
@@ -167,65 +199,56 @@ function showMePost(){
             }
 
             document.getElementById('app').innerHTML=postView;
-
             document.getElementById('btn_like').addEventListener('click', async function(e){
-
                 var idPost = e.target.getAttribute('data-postid');
                 console.log('User Id = ' +idPost);
-               
-
                 let uposts = new UPosts()
                 await uposts.putLikes(idPost)
-            });
-
-
-
+            }); 
+            
         })
     .catch(err=> {
         console.log(err);
     })
 }
 
-function  submitComment(titulo,contenido){
+function  submitPost(titulo,contenido, tags){
 
     console.log("Titulo: ", titulo);
-    console.log("COntenido: ", contenido);
+    console.log("Contenido: ", contenido);
+    console.log("Etiquetas: ", tags);
+
     var nuevoPost = {
         "title": titulo,
-        "Body": contenido,
-        "tags": ["nuevo"]
+        "body": contenido,
+        "tags": tags.split(',').map(Function.prototype.call, String.prototype.trim)
     };
-
     console.log(nuevoPost);
+    var tokens = window.localStorage.getItem('token');
 
-    fetch(`http://itla.hectorvent.com/api/post/`, {
+    fetch(`${API_PATH}/post/`, {
             method: 'POST',
-            
              headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer 5755db3e-3413-4723-bcc9-1451bea8be95`
+                'Authorization': `Bearer ` + tokens 
             },
             body: JSON.stringify({
                 "title": titulo,
-                "Body": contenido,
-                "tags": ["nuevo"]  
+                "body": contenido,
+                "tags": tags.split(',').map(Function.prototype.call, String.prototype.trim)
+ 
             })
         })
         .then(function (data) {  
             console.log('Request success: ', data);  
+            window.location="page.html";
           })  
           .catch(function (error) {  
             console.log('Request failure: ', error);  
           });
-          
        //.then(res => res.json())
       // .then(response => console.log('YESSSuccess:', response))
       // .catch(error => console.log('NOOOError:', error));
-
-
-
-
-
 }
 
 function createPost(){
@@ -233,67 +256,120 @@ function createPost(){
     document.getElementById('btn-nuevo-post').addEventListener('click', function(){
         var titulo = document.getElementById("titulo").value;
         var contenido = document.getElementById("contenido").value;
-        console.log(titulo, contenido);
-
-       
-        
-    submitComment(titulo, contenido);
+        var tags = document.getElementById("tags").value;
+        console.log(titulo, contenido, tags);
+        submitPost(titulo, contenido, tags);
     
     });
 }
 
 
-
-var avisosWSTemplate = 
-`<div aria-live="polite" aria-atomic="true" style="position: relative; min-height: 200px;">
-<div class="toast" style="position: absolute; top: 0; right: 0;">
-  <div class="toast-header">
-    <img src="./img/Logo-IMG-2.jpg" class="rounded mr-2" alt="...">
-    <strong class="mr-auto">Bootstrap</strong>
-    <small>11 mins ago</small>
-    <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
-      <span aria-hidden="true">&times;</span>
-    </button>
-  </div>
-  <div class="toast-body">
-    Hello, world! This is a toast message.
-  </div>
-</div>
+var wsAvisoTemplate = 
+`<div>
+<br>   
+<br>
+<h4> Notificaciones</h4>
+<br>   
+<br>
+<h5  class="lead"> {{NAME}} {{MENSAJE}} </h5>
+<hr>
 </div>`
 
-function avisosWS(){
-    console.log("Vamos a ver que hace esta función");
- 
-    document.getElementById('app').innerHTML=avisosWSTemplate;
 
-}
 
 
 function wsAvisos(datos){
+
+    var node = document.createElement("LI");                 // Create a <li> node
+    var textnode = document.createTextNode("Water");         // Create a text node
+    
+    //node.appendChild(textnode);                              // Append the text to <li>
+   // document.getElementById("app2").appendChild(node); 
+
 
     console.log("El tipo de datos fue:", datos.type);
 
              switch(datos.type) {
                  case "logged":
                      console.log("El Usuario", datos.userName, "se ha logueado");
-                    alert("El Usuario "+ datos.userName + " se ha logueado");
-                    avisosWS();
-                     break;
-                case "likes":
-                    console.log("ALGUIEN HA DADO UN LIKE")
-                    alert("ALGUIEN HA DADO UN LIKE");
-                    avisosWS();
+                   var profileView = '';
+                   profileView = profileView +
+                       wsAvisoTemplate.replace('{{NAME}}', datos.userName)
+                       .replace('{{MENSAJE}}', "se ha logueado");
+
+                    document.getElementById('app2').innerHTML = profileView;
                     break;
 
-                    //disconnected - new-post - user-connected
+                     
+                case "disconnected":
+                   console.log("El Usuario", datos.userName, "se ha desconectado");
+                   var profileView = '';
+                    profileView = profileView +
+                    wsAvisoTemplate.replace('{{NAME}}', datos.userName)
+                    .replace('{{MENSAJE}}', "está desconectado");
+                    document.getElementById('app2').innerHTML = profileView;
+                    break;
+
+                case "user-connected":
+                    console.log("El Usuario se ha conectado");
+                    var profileView = '';
+                    profileView = profileView +
+                    wsAvisoTemplate.replace('{{NAME}}', datos.userName)
+                    .replace('{{MENSAJE}}', "se ha conectado");
+                    document.getElementById('app2').innerHTML = profileView;
+                    break;
+
+                case "new-post":
+                    console.log("se ha creado un nuevo post");
+                    var profileView = '';
+                    profileView = profileView +
+                    wsAvisoTemplate.replace('{{NAME}}', "Se ha" )
+                    .replace('{{MENSAJE}}', "creado un post");
+                    document.getElementById('app2').innerHTML = profileView;
+
+
+                    break;
+
+                case "likes":
+                    console.log("ALGUIEN HA DADO UN LIKE")
+                    var profileView = '';
+                    profileView = profileView +
+                    wsAvisoTemplate.replace('{{NAME}}', "Se")
+                    .replace('{{MENSAJE}}', "ha dado un like al post "+ datos.postTitle);
+                    document.getElementById('app2').innerHTML = profileView;
+                    break;
              }
+}
+
+function loadMe(){
+
+    var tokens = window.localStorage.getItem('token');
+
+    fetch(`${API_PATH}/users/me`,{
+        headers:{
+            'Authorization': 'Bearer '+ tokens 
+        }
+    })
+    .then(res=>res.json())
+    .then(res=>{
+        console.log("EL USUARIO TUYO ES:", res.id);
+        me = res;
+        // return res.id;
+        console.log('Loged')
+    })
+    .catch(err=> {
+        // return 0;
+        console.log(err);
+    })
 }
 
 
 
 window.onload = function(){
 
-    var tokens = window.localStorage.getItem('Token');
+    var tokens = window.localStorage.getItem('token');
+   
+
     if(window.location.pathname === '/' && tokens !== null ) {
         console.log("TE MANDO A PAGE");
         window.location="page.html"
@@ -304,8 +380,8 @@ window.onload = function(){
         if(tokens !== null && window.location.pathname === "/page.html" ){
             console.log('TU TOKEN ES ', tokens);
             console.log("veamos posts");
+            loadMe();
             showPost();
-            
 
            document.getElementById("post_view").addEventListener('click', function(){
                showPost();
@@ -319,6 +395,9 @@ window.onload = function(){
             document.getElementById("create_post").addEventListener('click', function(){
                 createPost();
                 });
+            document.getElementById("get_out").addEventListener('click', function(){
+                    logout();
+                    });
 
             var ws = new WebSocket(`${WS_PATH}?token=${tokens}`);
              ws.onmessage = function(e){
